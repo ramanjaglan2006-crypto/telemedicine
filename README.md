@@ -5,8 +5,13 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)
 ![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2016-blue.svg)
 ![Tests](https://img.shields.io/badge/Tests-26%20Passing-brightgreen.svg)
+[![Live Demo](https://img.shields.io/badge/Render-Live%20API-success)](https://amrutam-telemedicine-oizo.onrender.com/api/docs)
 
 Production-grade, highly available, secure, and observable backend for Amrutam's Ayurvedic Telemedicine Platform. Built to support 100,000+ daily consultations, concurrent doctor bookings with atomic double-booking prevention, immutable prescriptions, TOTP multi-factor authentication, and strict object-level tenant authorization.
+
+🌐 **Live Deployment:** [https://amrutam-telemedicine-oizo.onrender.com](https://amrutam-telemedicine-oizo.onrender.com)  
+📖 **Interactive Swagger UI Documentation:** [https://amrutam-telemedicine-oizo.onrender.com/api/docs](https://amrutam-telemedicine-oizo.onrender.com/api/docs)  
+🩺 **Health Probe:** [https://amrutam-telemedicine-oizo.onrender.com/health/live](https://amrutam-telemedicine-oizo.onrender.com/health/live)
 
 ---
 
