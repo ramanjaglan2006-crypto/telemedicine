@@ -1,0 +1,244 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Amrutam Telemedicine Backend API",
+    "version": "1.0.0",
+    "description": "Production-grade telemedicine backend supporting patients, doctors, concurrent appointment booking, consultation workflows, immutable prescriptions, idempotency, and payments."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "IdempotencyKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "description": "Unique key to ensure safe non-repeatable writes and concurrent duplicate protection"
+      }
+    },
+    "schemas": {
+      "StandardError": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "CONFLICT" },
+              "message": { "type": "string", "example": "Slot is no longer available for booking" },
+              "requestId": { "type": "string", "format": "uuid" },
+              "details": { "type": "array", "items": { "type": "object" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "summary": "Liveness probe",
+        "responses": {
+          "200": { "description": "Process is alive and responding" }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Readiness probe",
+        "responses": {
+          "200": { "description": "Application and dependencies are healthy" },
+          "503": { "description": "Database or dependency unhealthy" }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus scraping endpoint",
+        "responses": {
+          "200": { "description": "Prometheus metrics in text format" }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Register a new user (Patient, Doctor, or Admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "firstName", "lastName"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "role": { "type": "string", "enum": ["PATIENT", "DOCTOR", "ADMIN"], "default": "PATIENT" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "doctorProfile": {
+                    "type": "object",
+                    "properties": {
+                      "specialization": { "type": "string" },
+                      "licenseNumber": { "type": "string" },
+                      "yearsOfExperience": { "type": "integer" },
+                      "consultationFee": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created successfully with access and refresh tokens" },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email already registered" }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Authenticate user credentials and optional MFA token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" },
+                  "mfaToken": { "type": "string", "maxLength": 6 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Authenticated or MFA required indicator" },
+          "401": { "description": "Invalid credentials or MFA failure" }
+        }
+      }
+    },
+    "/api/v1/appointments": {
+      "post": {
+        "summary": "Atomic double-booking protected appointment creation",
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["doctorId", "slotId"],
+                "properties": {
+                  "doctorId": { "type": "string", "format": "uuid" },
+                  "slotId": { "type": "string", "format": "uuid" },
+                  "consultationType": { "type": "string", "enum": ["VIDEO", "AUDIO", "CHAT"], "default": "VIDEO" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Appointment booked atomically" },
+          "409": { "description": "Slot already booked or concurrent booking conflict detected" },
+          "422": { "description": "Idempotency key reused with different payload" }
+        }
+      }
+    },
+    "/api/v1/appointments/{appointmentId}/cancel": {
+      "post": {
+        "summary": "Cancel an appointment and release slot",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Appointment cancelled and slot released" },
+          "403": { "description": "Forbidden - anti-IDOR violation" }
+        }
+      }
+    },
+    "/api/v1/prescriptions/consultations/{consultationId}/prescriptions": {
+      "post": {
+        "summary": "Issue an immutable versioned clinical prescription (Doctor only)",
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["diagnosis", "medications"],
+                "properties": {
+                  "diagnosis": { "type": "string" },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["name", "dosage", "frequency", "durationDays"],
+                      "properties": {
+                        "name": { "type": "string" },
+                        "dosage": { "type": "string" },
+                        "frequency": { "type": "string" },
+                        "durationDays": { "type": "integer" }
+                      }
+                    }
+                  },
+                  "instructions": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Prescription issued and encrypted with AES-256-GCM" }
+        }
+      }
+    },
+    "/api/v1/payments/webhooks/{provider}": {
+      "post": {
+        "summary": "Idempotent payment webhook processor with HMAC signature verification",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Webhook verified and processed idempotently" },
+          "401": { "description": "Invalid HMAC signature" }
+        }
+      }
+    },
+    "/api/v1/admin/analytics/overview": {
+      "get": {
+        "summary": "High-level operational metrics (Admin only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Aggregate statistics on appointments, consultations, payments, and doctor utilization" }
+        }
+      }
+    }
+  }
+}
