@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: amrutam-telemedicine-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: JWT_ACCESS_SECRET
+        value: c1e87903fbbcf49d2822a16d849206d203df4401c34a9914df5a8bf19416551b
+      - key: JWT_REFRESH_SECRET
+        value: 7f94bb2e20ff9c016cf774bf9129d3c5092a4066928e46955c45e89a531cf5c9
+      - key: ENCRYPTION_KEY
+        value: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - key: WEBHOOK_SECRET_STRIPE
+        value: whsec_mock_stripe_webhook_secret_key_123
+      - key: LOG_LEVEL
+        value: info
